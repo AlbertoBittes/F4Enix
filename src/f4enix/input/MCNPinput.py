@@ -1271,7 +1271,7 @@ class Input:
             )
 
         new_cell = Input._add_symbol_to_cell_input(
-            cell, template_addition, inplace=inplace
+            cell, template_addition, inplace=inplace, new_cell_num=new_cell_num
         )
 
         for k in range(len(new_cell.values) - 1, -1, -1):
@@ -1279,10 +1279,6 @@ class Input:
                 break
 
         new_cell.values.insert(k + 1, (abs(add_surface), "sur"))
-
-        if new_cell_num is not None:
-            new_cell.name = new_cell_num
-            new_cell._set_value_by_type("cel", new_cell_num)
 
         return new_cell
 
@@ -1308,7 +1304,7 @@ class Input:
         """
         template_addition = "#{:<" + str(len(str(hash_id)) - 1) + "} "
         new_cell = Input._add_symbol_to_cell_input(
-            cell, template_addition, inplace=inplace
+            cell, template_addition, inplace=inplace, new_cell_num=new_cell_num
         )
         # add the hash cell to the cell values
         for k in range(len(new_cell.values) - 1, -1, -1):
@@ -1316,11 +1312,6 @@ class Input:
                 break
 
         new_cell.values.insert(k + 1, (hash_id, "cel"))
-
-        # renumber the cell if requested
-        if new_cell_num is not None:
-            new_cell.name = new_cell_num
-            new_cell._set_value_by_type("cel", new_cell_num)
 
         return new_cell
 
@@ -1345,6 +1336,7 @@ class Input:
         add_symbol: str,
         inplace: bool = True,
         parentheses: bool = True,
+        new_cell_num: int = None,
     ) -> parser.Card:
 
         if inplace:
@@ -1356,10 +1348,16 @@ class Input:
         first_row = new_cell.input[0].split()
 
         if parentheses:
-            if new_cell.get_m() == 0:
-                first_row[2] = "(" + first_row[2]
+            if len(first_row) >= 4:
+                if new_cell.get_m() == 0:
+                    first_row[2] = "(" + first_row[2]
+                else:
+                    first_row[3] = "(" + first_row[3]
             else:
-                first_row[3] = "(" + first_row[3]
+                if new_cell.get_m() == 0:
+                    first_row[1] = first_row[1] + " ("
+                else:
+                    first_row[2] = first_row[2] + " ("
 
         new_cell.input[0] = " ".join(first_row)
 
@@ -1385,6 +1383,40 @@ class Input:
                     new_cell.input[i] = "     " + new_cell.input[i]
                 break
 
+        if new_cell_num is not None:
+            new_cell.name = new_cell_num
+            new_cell._set_value_by_type("cel", new_cell_num)
+
+        return new_cell
+
+    @staticmethod
+    def cell_union(
+        cell_1: parser.Card,
+        cell_2: parser.Card,
+        inplace=True,
+    ) -> None:
+        """Sets a material (and density) to a void cell.
+
+        Parameters
+        ----------
+        cell : parser.Card
+            cell to be modified.
+        new_mat_id : int
+            id of the new material.
+        new_density : str
+            new value for the density (including sign).
+        """
+
+        new_cell = Input._add_symbol_to_cell_input(
+            cell_1,
+            " : (" + cell_2.get_geom().replace("\n", " ") + ")",
+            inplace=True,
+            parentheses=True,
+        )
+        new_cell = parser.Card(
+            new_cell.card(wrap=True).splitlines(keepends=True), 3, new_cell.pos
+        )
+        new_cell.get_values()
         return new_cell
 
     @staticmethod
@@ -1501,8 +1533,8 @@ class Input:
 
         card = parser.Card([line], 5, -1)
         self.other_data["NPS"] = card
-    
-    def check_range(self, range: list[int], who: str = 'cell') -> bool:
+
+    def check_range(self, range: list[int], who: str = "cell") -> bool:
         """Check if the provided range is not within the used index, i.e., if the range
         is free. Both cells and surfaces can be checked.
 
@@ -1523,11 +1555,11 @@ class Input:
         ValueError
             only surf or cell are accepted as who
         """
-        if who == 'cell':
+        if who == "cell":
             used_index = self.cells.keys()
-        elif who == 'surf':
+        elif who == "surf":
             used_index = self.surfs.keys()
-        else:   
+        else:
             raise ValueError("who can be only 'cell' or 'surf'")
         # check that the provided range is not within the used index
         # need to do the check for strings since there may be asterisks
@@ -1536,7 +1568,6 @@ class Input:
                 if str(i) in j:  # that's for the asterisk problem
                     return False
         return True
-        
 
 
 class D1S_Input(Input):
